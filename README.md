@@ -1,203 +1,285 @@
 # CPCS683 — Controlled Single-Agent vs Multi-Agent Hajj Risk Study
 
-## Research question
+**Source code:** https://github.com/arwa17/Hajj-risk-project  
+**Course milestones:** M4 baseline, M5 evaluation harness, and M6 controlled comparison  
+**Type of system:** Research prototype for synthetic Hajj crowd-risk assessment; **not** a deployed safety system.
 
-Does specialist-agent organization improve reliability for simulated Hajj crowd-risk
-assessment with noisy, missing, or conflicting observations, compared with a
-single generalist using the same evidence, shared ML model, and decision gate?
-The compared factor is **role/message organization** (one generalist versus three
-specialists plus a coordinator). The task is advisory, not a real Hajj safety system.
+## Start here — follow the project
 
-## Project milestones: M4, M5, and M6
+| Step | What was implemented | Where to inspect | How to verify |
+|---|---|---|---|
+| **M4: Baseline** | Single Gemini generalist, structured reports, shared decision gate, one-domain verification | `hajj_study/generalist.py`, `gate.py`, `verify.py`, `schemas.py` | Run the safe offline demo in [Quick start](#quick-start-no-api-key-required) |
+| **M5: Evaluation** | Private golden set, automated scorer, seed-wise metrics, component and trajectory diagnostics | `cases.py`, `score_runs.py`, `diagnose_m5.py`, `tests/study/` | See [M5](#m5--evaluation-harness-and-single-agent-results) and the private-data requirements |
+| **M6: Comparison** | Three specialist agents and one coordinator; matched-case/seed experiment; cost, latency, and failure analysis | `specialists.py`, `coordinator.py`, `multi_agent.py`, `g7.py`, `m6_results.py` | See [M6](#m6--multi-agent-experiment-and-results) |
 
-- **M4 — Single-Agent baseline:** the generalist, shared machine-learning predictions, JSON contract, and decision/verification gate were implemented. The code is included; a formal in-class live demo is not independently established by this public repository.
-- **M5 — Evaluation harness:** 30 held-out cases, three fixed seeds, automated offline scoring, component/trajectory checks, and reported baseline variation. Individual source cases and labels are private.
-- **M6 — Multi-Agent comparison:** three domain specialists and one coordinator were evaluated on the same case/seed grid. Reported outcomes include variation, API attempts, call counts, elapsed time, and failure analysis with stated limitations.
+**Important distinction:** The repository publicly reproduces the **code tests and a scripted offline end-to-end demonstration**. Recomputing the **original Gemini experiment's numerical scores** requires the protected frozen test inputs and raw traces, which are not distributed publicly.
 
-This repository presents a **single course project** covering all three milestones. Its published code and aggregate results are the delivery artifacts; protected experimental inputs and traces are not included.
+## 1. Research question and experimental design
 
-## Design and experimental protocol
+**Question.** Does organizing a simulated crowd-risk decision task across three specialists and a coordinator improve decision reliability compared with a single generalist when observations may be missing, noisy, or conflicting?
 
-- **Data:** 10,000 simulated crowd-management records. Evaluation risk labels
-  are reconstructed from a fixed, seven-variable proxy, **not real-world harm labels**.
-- **Development:** 40 cases. An 80% target coverage was used when calibrating
-  the shared decision gate; **k = 7** was frozen before Fresh Test evaluation.
-- **Fresh Test:** 30 held-out cases (21 clean, 9 disrupted). There are also 9 paired
-  clean-reference cases. Seeds **11, 42, 77** yield **90 primary runs and 27
-  clean-reference runs per condition** (117 run keys per condition).
-- **Baseline:** one Generalist with all crowd, health, and environment evidence.
-- **Treatment:** Crowd, Health, Environment Specialists -> Coordinator, using
-  structured JSON. At most one verification round per run.
-- **Shared controls:** same test cases, seeds, ML predictions, frozen decision gate,
-  nominal model and observed model version (`gemini-3.5-flash-lite`), and scorer.
-  Generation configuration includes temperature 0, top-p 1, max output tokens 4096.
-- **Outcomes:** ISSUE, ABSTAIN, or FAILED; a FAILED execution is never counted as
-  a safe abstention. Clean references are excluded from the 90-run primary denominator.
+**Hypothesis.** Specialist decomposition might improve detection of corrupted evidence and reduce incorrect or unsupported escalations, but may increase agent calls and latency. The hypothesis is **tested**, not assumed true.
 
-## M5 and M6 — Frozen evaluation results
+**Manipulated factor:** Role/message organization. The recorded Gemini model was `gemini-3.5-flash-lite` (requested and observed version), with temperature `0`, top-p `1`, maximum output tokens `4096`, and fixed test seeds `11`, `42`, and `77`. Model outputs may still vary at temperature zero.
 
-Values below are **mean ± sample SD across three seeds**. Percent signs indicate
-percentage points for the SD. The 30 source cases are repeated, not 90 distinct cases.
+- **Single-Agent:** One Gemini generalist sees all seven permitted observations and the shared ML prediction.
+- **Multi-Agent:** Crowd, Health, and Environment specialists see only their authorized observations. One coordinator receives their structured reports and the same shared ML prediction.
+- **Held constant by design:** Source cases, three seeds (11, 42, 77), ML predictions, evidence threshold (`k=7`), reference labels, scoring code, and maximum one verification round.
 
-| Metric | Single-Agent | Multi-Agent |
-|---|---:|---:|
-| Coverage (%) | 75.56 ± 1.92 | 78.89 ± 1.92 |
-| Selective error (%) | 38.27 ± 3.15 | 54.89 ± 3.14 |
-| Unsupported escalation (%) | 38.27 ± 3.15 | 54.89 ± 3.14 |
-| Under-escalation (%) | 0.00 ± 0.00 | 0.00 ± 0.00 |
-| Trajectory safe completion (%) | 71.11 ± 1.92 | 56.67 ± 3.33 |
-| Logical agent calls / primary case | 1.46 ± 0.07 | 4.99 ± 0.12 |
-| HTTP attempts / primary case | 1.64 ± 0.11 | 5.77 ± 0.33 |
-| Wall-clock time (seconds / primary case) | 11.90 ± 1.20 | 43.56 ± 3.41 |
+The agents produce a LOW, MEDIUM, or HIGH risk proposal. A deterministic gate checks the report and decides **ISSUE**, **VERIFY** (once), or **ABSTAIN**. A technical failure is **FAILED**, never a safe abstention. Both systems are advisory only.
 
-### Primary outcomes (90 runs per condition)
+### Architecture and decision flow
 
-| Outcome | Single-Agent | Multi-Agent |
-|---|---:|---:|
-| Correct ISSUED | 42 | 32 |
-| Incorrect ISSUED | 26 | 39 |
-| ABSTAINED | 22 | 19 |
-| Terminal FAILED after documented recovery | 0 | 0 |
+```text
+Case observations + shared frozen ML prediction
+                   |
+      +------------+-------------+
+      |                          |
+      v                          v
+ SINGLE-AGENT              MULTI-AGENT
+ Generalist               Crowd specialist
+ (all 7 fields)           Health specialist
+                         Environment specialist
+                                |
+                                v
+                          Coordinator
+      |                          |
+      +------------+-------------+
+                   v
+         Validated JSON risk report
+                   |
+         Shared decision gate, k=7
+                   |
+          +--------+--------+
+          |                 |
+        ISSUE         Insufficient evidence
+                            |
+                     VERIFY one domain
+                            |
+                 Re-run applicable agent(s)
+                            |
+                    ISSUE or ABSTAIN
+```
 
-Paired primary outcomes: both correct **31**, Single-only correct **11**,
-Multi-only correct **1**, neither issued a correct decision **47**. The last
-category includes abstentions and is **not** equivalent to 47 errors.
+The specialists are separate model roles, called sequentially to respect rate pacing; the coordinator is a separate model call. A Multi-Agent case takes four logical calls initially, and two additional calls if verification occurs. A Single-Agent case takes one initial call and one additional call if verification occurs.
 
-### Corruption and recovery
+## 2. Quick start (no API key required)
 
-- Paired corruption flag rate: **6/9 = 66.67%** for **each seed and both conditions**.
-  This is a component flagging measure, not proof of changed-decision detection.
-- Disrupted-case detection and clean-decision recovery: **Single = N/A** because
-  each eligible denominator is zero (seeds 11/42/77). **Multi = 16.67% ± 28.87
-  percentage points** per seed; across the three seeds, only 1/5 eligible paired
-  observations succeeded. N/A is **not** 0%.
-
-### Observed failures and trajectory analysis
-
-Both conditions had zero terminal execution failures after recovery. Every
-incorrect issued decision was an over-escalation relative to the simulated proxy;
-under-escalations were not observed. Errors without/after verification were
-**20/6** for Single and **27/12** for Multi. Typical clean cases accounted for
-23/28 incorrect issued decisions, and missing-observation cases for 3/6,
-respectively. In Multi, 37 of 39 wrong final decisions began as overestimates;
-the remaining two began with matching initial risk and ended incorrect. These
-patterns are descriptive and cannot identify a single agent as the cause.
-
-### Interpretation and threats to validity
-
-Single had lower selective error and higher trajectory safe completion, with
-lower observed operational overhead. Multi achieved slightly higher coverage,
-but both mean coverages fell below the **80% target** and achieved coverage was
-**not equal between arms**. Fixed k does not imply equal achieved coverage.
-The measured difference does **not** establish a universal safety advantage.
-
-The simulated labels are a proxy and the 30-case holdout is small. Three seed
-repetitions do not create 90 independent source cases. The Google API project/key
-changed part-way through the Multi execution, and the Multi HTTP 503 retry policy
-was later increased from two to three attempts per role. These changes could
-confound direct API attempt, latency, and cost comparisons. They were logged;
-no prompts, task data, gold labels, gate values, or model versions were retuned
-based on Fresh Test performance. Model stochasticity is still possible at
-`temperature=0`. Monetary cost must not be claimed without a complete validated
-usage/pricing audit.
-
-## Repository and reproducibility
-
-**Required Python:** 3.12, based on the experiment's recorded environment.
-Use a fresh virtual environment:
+Use **Python 3.12**. The following commands run from the repository root. Installation needs network access to download Python packages; the demo and offline tests do **not** call Gemini.
 
 ```bash
+# Download the public source
+git clone https://github.com/arwa17/Hajj-risk-project.git
+cd Hajj-risk-project
+
+# Isolated Python environment
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+python -m pip check
+
+# Safe scripted demonstration: no keys, no Gemini network requests
+python -B -m examples.offline_demo
 ```
 
-The repository's `hajj_study/` package contains the Single and Multi systems,
-JSON validation, shared gate, frozen experiment checks, offline scoring, and
-M6 fairness verification. `tests/` holds unit/integration tests. To discover
-and run the local test suite, after reviewing tests for their dependencies:
+**Expected offline demo:** Three scenarios — `clean`, `one_missing`, `two_missing` — exercise direct ISSUE, VERIFY → ISSUE, and VERIFY → ABSTAIN in both architectures. Successful output includes `DEMO_ASSERTIONS: PASS`, `PROVIDER: SCRIPTED_FIXTURE_ONLY`, `GEMINI_CALLS: ZERO`, and `FROZEN_EVALUATION_REPRODUCED: NO`.
+
+Run the project tests separately:
 
 ```bash
-python -m unittest discover -s tests/study -p 'test_*.py' -t tests/study
+# macOS: use a non-symlinked temporary directory for the protected WAL tests
+mkdir -p "$HOME/.hajj-risk-test-tmp"
+chmod 700 "$HOME/.hajj-risk-test-tmp"
+
+# No live API credentials are needed
+TMPDIR="$HOME/.hajj-risk-test-tmp" \
+  env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u OPENAI_API_KEY \
+  python -B -m unittest discover -s tests/study -p 'test_*.py' -t tests/study
 ```
 
-**Safety:** This command corrects discovery only. The verified R03 audit also used an isolated temporary directory, removed API credentials, and blocked network calls. Do not run these tests with live credentials.
+**Observed local verification (11 November 2026):** The reviewed delivery candidate ran **178 tests, 0 failures, 0 errors, 1 skipped** on macOS ARM64 with Python 3.12.5 and the pinned packages. The single skipped test requires private CSV, split and prediction files. All scripted offline demo assertions passed. This is a recorded local result, not a guarantee of identical behavior on every computer. If the temporary directory is a symlink, the attempt-journal safety checks intentionally refuse it; do **not** disable that protection.
 
+### Code map
 
-**Verified local clean-checkout test (11 November 2026):** On macOS ARM64,
-Python 3.12.5, a newly created virtual environment with the pinned requirements
-passed `pip check`; the original public test suite completed **177 tests, 0
-failures, 0 errors, 1 skipped** with a network guard and no API credentials.
-The skipped integration test requires protected CSV/split/model inputs.
-This verifies source code and test execution in that environment, not the
-regeneration of exact private evaluation results.
+| File(s) | Purpose |
+|---|---|
+| `audit_data.py`, `proxy.py`, `split_data.py` | Validate original synthetic data; create deterministic proxy labels and a train/validation/test split |
+| `train_model.py`, `feature_contract.py` | Train shared XGBoost model on train records only; save predictions and model hashes privately |
+| `cases.py`, `corrupt.py` | Deterministic development/test case generation, disruptions, clean references and checksums |
+| `generalist.py`, `prompts.py`, `schemas.py` | M4 agent interface, prompts and strict JSON validation |
+| `gate.py`, `verify.py` | Shared evidence gate, bounded verification, abstention |
+| `g5.py`, `g6.py`, `score_runs.py` | Frozen model/gate controls, Single-Agent recorded evaluation, M5 scorer |
+| `specialists.py`, `coordinator.py`, `multi_agent.py` | M6 agent roles and coordinated decision flow |
+| `m6_fairness.py`, `g7.py`, `m6_results.py` | Controlled-treatment checks, recorded Multi-Agent evaluation, M6 paired scoring |
+| `provider.py`, `attempt_journal.py` | Gemini provider handling, bounded retries and private request/response journaling |
+| `examples/offline_demo.py`, `tests/study/` | Public safe end-to-end demonstration and offline tests |
 
-The offline paired scorer entry point is `python -m hajj_study.m6_results`.
-Its options include `--g5-dir`, `--g6-dir`, `--g7-dir`, and `--output`, all of
-which must point to an authorized **private** experiment workspace. The scorer
-verifies the frozen G5 provenance; it requires the original G3 sources at their
-recorded manifest paths and must not silently substitute or regenerate labels.
+## 3. Data preparation and experimental controls
 
-The published repository **must not contain** API keys, raw CSV data, gold
-labels, Test inputs, private model outputs, HTTP request/response journals,
-private test traces, or sealed private score files. The real-run evidence is
-retained in a protected private archive; the aggregate results above come from
-that sealed evaluation. Public code alone cannot reproduce the exact held-out
-scores without authorized access to the frozen private inputs. Before any
-redistribution of source data, its license and terms must be checked.
+**Original source:** [Hajj and Umrah Crowd Management Dataset](https://www.kaggle.com/datasets/ziya07/hajj-and-umrah-crowd-management-dataset/data), 10,000 synthetic records. The source has no directly supplied operational-risk target, so this study defines a fixed **proxy** risk label from seven fields: crowd density (0.25), temperature (0.20), fatigue (0.15), stress (0.15), queue time (0.10), emergency event (0.10), and distance between people (0.05). Thresholds are LOW below 1.8; MEDIUM from 1.8 through 2.4; HIGH above 2.4. These are **proxy labels, not observed incident outcomes**.
 
-## Reproducible offline end-to-end demonstration
+The source is stratified into **7,000 train / 1,000 validation / 2,000 test** source records (`split_data.py`, seed 42). The shared XGBoost + SMOTENC training path fits preprocessing/resampling on training data only. It excludes the seven label-construction fields from its allowed 17 predictors. Both agent conditions consume the **same frozen model outputs**, not separate ML models.
 
-Run `python -m examples.offline_demo` from the repository root. This
-uses **scripted synthetic provider outputs**, no Gemini, no API key and no
-protected data. It exercises the **real** Single-Agent and Multi-Agent
-validation, decision gate, bounded verification, and abstention logic.
-Its three paths are direct ISSUE, VERIFY → ISSUE, and VERIFY → ABSTAIN.
-**Local candidate verification (11 November 2026):** With the macOS test temporary directory set to a non-symlinked private audit path, the candidate completed **178 tests (0 failures, 0 errors, 1 skipped)** and all scripted end-to-end scenarios (`DEMO_ASSERTIONS: PASS`). These synthetic runs do **not** reproduce the frozen Gemini evaluation.
+The study selected **40 development cases** before held-out testing. The **30 distinct held-out test cases** comprise:
 
-It is a functional source-code demonstration, **not** a replication of
-the frozen empirical findings.
+| Case type | Test cases |
+|---|---:|
+| Typical clean | 18 |
+| Missing observations | 3 |
+| Noisy observations | 3 |
+| Conflicting observations | 3 |
+| Borderline clean | 3 |
+| **Total** | **30** |
 
-## API trace verification limitation
+The test suite has 10 LOW, 10 MEDIUM, and 10 HIGH proxy labels. An additional **nine paired clean-reference cases** support corruption/recovery metrics. Across the three fixed seeds (11, 42, 77), each condition has **90 primary runs** (30 × 3) and **27 reference runs** (9 × 3). The 27 references are *excluded* from the primary 90-run denominator.
 
-In the 11 November 2026 read-only provenance review, 884 of 894 recorded
-attempt slots were linked exactly to their WAL entries. Six expected
-slots were missing and four differed from their same-slot WAL entries;
-some corresponding requests/responses were found in other slots.
-Complete one-to-one API attempt provenance remains **unproven**.
-Neither this caveat nor the offline demo changes the frozen test outputs.
+Case generation is deterministic, and original inputs, labels, private metadata, model, and frozen manifests are SHA-256 recorded in the protected study workspace. No evaluation gold label or clean reference is passed to an agent prompt; verification reveals only the selected domain's clean observations.
 
-## Responsible use
+**Rebuilding private inputs:** `audit_data.py`, `split_data.py`, `train_model.py` and `cases.py` expose CLI entry points for authorized reconstruction. Re-creating new files is **not equivalent to reproducing the frozen experiment**. Never replace archived frozen inputs, rerun Gemini, or publish original CSV/labels without appropriate permission and license review.
 
-This software is a controlled class-project experiment. Do not interpret its
-risk levels as validated live crowd-safety advice, deploy it on real Hajj
-infrastructure, or let it issue automated operational actions. Credentials
-must be supplied outside the repository and kept in an appropriate secret store.
+## 4. M4 — Working Single-Agent baseline
 
+The baseline is implemented by `hajj_study.generalist.execute_single_case`. It:
 
-## Research Credits and Dataset Attribution
+1. Validates the case (`case_id`, seven observations, frozen ML prediction).
+2. Requests a schema-constrained report from the generalist.
+3. Uses `SharedDecisionGate` to count sufficiently supported, unflagged fields (`7 − number_of_distinct_flagged_fields`).
+4. Issues the proposed risk if evidence sufficiency reaches the frozen `k=7` threshold.
+5. Otherwise verifies **one** affected domain, re-requests the report, and either issues or abstains.
+6. Records exceptions as `FAILED`, not `ABSTAIN`.
 
-### Original research
+**Runnable evidence:** `python -B -m examples.offline_demo` executes the real baseline and gate using a scripted provider, and `tests/study/test_generalist_mock.py` verifies issuance, verification, abstention, and provider-failure handling. These tests do not pretend to be fresh Gemini results.
 
-Najwa Samrgandi (2026), *Multi-Agent Crowd-Risk Prioritization for Large-Scale Events: A Hybrid ML–Agent Approach*, **International Journal of Advanced Computer Science and Applications (IJACSA)**, 17(7).
+## 5. M5 — Evaluation harness and Single-Agent results
 
-Original research paper: https://doi.org/10.14569/IJACSA.2026.0170738
+### What was implemented
 
-We gratefully acknowledge Dr. Najwa Samrgandi's published research as a scientific foundation and reference for this course project. This repository contains an independent, controlled Single-Agent versus Multi-Agent comparison with evidence verification, abstention, and evaluation under altered observations. The project's implementation, evaluations and results are not the original paper's experiments or findings.
+- **Golden set:** 30 held-out source cases with proxy ground truth, difficult-case types, and separate 40-case development set (`cases.py`). Gold labels and source-row metadata are **private**, not given to inference agents.
+- **Automated scoring:** `score_runs.py` validates the run grid, model version, recorded reports, outcomes, case provenance, and metrics. It does not call Gemini.
+- **End-to-end scoring:** Correct decisions, incorrect decisions, abstentions, failures and trajectory safe completion.
+- **Component scoring:** Correct field/type corruption flags, false flags on clean cases, paired corruption-flag rate, verification use/budget, and structured-call validation.
+- **Repeated measurements:** Three fixed seeds (11, 42, 77); seed-wise measurements summarized as **mean ± sample standard deviation**. The same 30 cases recur across seeds (not 90 independent cases).
 
-### Source dataset
+### How M5 scoring is run with authorized frozen private artifacts
 
-**Hajj and Umrah Crowd Management Dataset**, Kaggle user **ziya07**.
+The public repository contains the scorer, **not** the protected original `g5`/`g6` files. If the assessor has authorized access to the original archived directories (with their unchanged manifests, source paths, gold labels and checkpoints), the scorer can be run **offline**:
 
-Original dataset: https://www.kaggle.com/datasets/ziya07/hajj-and-umrah-crowd-management-dataset/data
+```bash
+# Replace these placeholders with authorized archived directories.
+G5_DIR="/secure/path/to/frozen/g5"
+G6_DIR="/secure/path/to/frozen/g6"
 
-The source is a synthetic crowd-management dataset with 10,000 rows. Attribution to the paper does not grant rights to redistribute the separate Kaggle dataset. Before adding the full source CSV to this public repository, confirm the dataset's own license and redistribution terms.
+python -B -m hajj_study.score_runs \
+  --g5-dir "$G5_DIR" --g6-dir "$G6_DIR" \
+  --output "$G6_DIR/m5_scores_review.json"
+```
 
-### Reproducibility and study limitations
+This command **writes a new JSON result inside the supplied private directory**. Use a separately authorized writable private workspace, not a sealed original, if preservation is required. It makes **no Gemini calls**. It will refuse missing or inconsistent provenance; exact score regeneration cannot be verified from the public repository alone.
 
-- The evaluation uses 30 distinct test cases, three seeds (11, 42, 77), and a fixed evidence gate at `k=7`.
-- This code release contains no real Gemini API keys, private prompt/response payloads, or raw test fixtures. Those inputs are **not** available in this source-only publication; reproducing exact frozen scores requires the protected artifacts.
-- These comparisons were conducted on synthetic data and do not establish real-world Hajj safety performance.
-- The Multi-Agent arm did not improve the measured selective error compared with Single-Agent in the frozen test results.
-- The independently defined verification-aware `ML+Gate` baseline remains a limitation; do not mistake an exploratory ML-only wrapper for that baseline.
-- See `RESULTS_SUMMARY.md` for descriptive frozen-test figures.
+### Observed M5 baseline results
+
+**Single-Agent, 90 primary test executions:** 42 correct ISSUED; 26 incorrect ISSUED; 22 ABSTAIN; **0 terminal FAILED after documented recovery**. Coverage is **68/90 = 75.56%**. Pooled selective error is **26/68 = 38.24%**. The mean of the *three per-seed selective error percentages* is **38.27% ± 3.15 percentage points**; it differs slightly from the pooled ratio because seeds have different issuance denominators.
+
+| Metric (mean ± sample SD across seeds) | Single-Agent |
+|---|---:|
+| Coverage | 75.56% ± 1.92 pp |
+| Selective error | 38.27% ± 3.15 pp |
+| Unsupported escalation | 38.27% ± 3.15 pp |
+| Under-escalation | 0.00% ± 0.00 pp |
+| Trajectory safe completion | 71.11% ± 1.92 pp |
+
+Paired corruption flag rate was **6/9 (66.67%) per seed**, but the proposal's *disrupted-case detection* and *clean-decision recovery* are **N/A** for Single-Agent because the eligible raw-decision-change denominator was zero. N/A **must not** be reported as zero performance.
+
+## 6. M6 — Multi-Agent experiment and results
+
+### Treatment implementation and comparison protocol
+
+`specialists.py` contains domain-isolated specialist calls, `coordinator.py` combines validated specialist reports and the shared ML prediction, and `multi_agent.py` executes the bounded four-role workflow. `g7.py` records and resumes the private real-run experiment; `m6_fairness.py` checks shared controls and case pairing; `m6_results.py` performs paired scoring and operational comparisons.
+
+The manipulated factor is **one generalist vs three specialist roles + one coordinator**. Both conditions used the **same 30 cases, three seeds, frozen common ML predictions, decision gate `k=7`, one-domain verification budget, and scorer**. The Multi-Agent condition has four initial logical model calls per case and two more after verification.
+
+**Execution caveat:** The Google API project/key changed during part of the Multi-Agent experiment, and the Multi-Agent HTTP 503 retry limit was later raised from two to three attempts per role. Thus, operational overhead is **observed**, but API attempts, costs and latency are not perfectly controlled against the Single-Agent runs. No frozen outcome, gold label, prompt, gate or model version was retuned based on the held-out results.
+
+### Reported results
+
+**Primary cases:** 30 test cases × 3 seeds = **90 runs per condition**. The following values are **mean ± sample SD across three seeds**, not pooled percentages.
+
+| Metric | Single-Agent | Multi-Agent |
+|---|---:|---:|
+| Coverage | 75.56% ± 1.92 pp | 78.89% ± 1.92 pp |
+| Selective error | 38.27% ± 3.15 pp | 54.89% ± 3.14 pp |
+| Unsupported escalation | 38.27% ± 3.15 pp | 54.89% ± 3.14 pp |
+| Under-escalation | 0.00% ± 0.00 pp | 0.00% ± 0.00 pp |
+| Trajectory safe completion | 71.11% ± 1.92 pp | 56.67% ± 3.33 pp |
+| Logical agent calls / case | 1.46 ± 0.07 | 4.99 ± 0.12 |
+| HTTP attempts / case | 1.64 ± 0.11 | 5.77 ± 0.33 |
+| Full wall-clock seconds / case | 11.90 ± 1.20 | 43.56 ± 3.41 |
+
+| Final outcome, all 90 runs | Single-Agent | Multi-Agent |
+|---|---:|---:|
+| Correct ISSUED | 42 | 32 |
+| Incorrect ISSUED | 26 | 39 |
+| ABSTAIN | 22 | 19 |
+| Terminal FAILED after recovery | 0 | 0 |
+| Pooled selective error | 26/68 = 38.24% | 39/71 = 54.93% |
+
+The matching-case analysis recorded **31 both correct**, **11 Single-only correct**, **1 Multi-only correct**, and **47 neither issued a correct decision** (the last category includes abstentions and is not 47 errors). The paired corruption-flag rate was **6/9 per seed** in both conditions. For the proposal's conditional disrupted-case detection and clean-decision recovery analysis, Single-Agent has **N/A** because the eligible denominator is zero; the published Multi-Agent summary reports **16.67% ± 28.87 pp across seeds**, with **1/5 eligible paired observations** succeeding. These conditional measures must not be conflated with all-case accuracy or the 6/9 field-flag rate.
+
+**Cost:** Agent calls, HTTP attempts, recorded token usage where available, and runtime are the observed cost proxies. A verified total dollar amount is **not** claimed because usage fields are incomplete and pricing was not fully validated. Clean-reference overhead is accounted for separately from primary-case operational cost.
+
+### Systematic failure analysis
+
+- **Terminal software execution failures:** 0 in the finalized run grids after documented recovery. This does not mean decisions were always correct.
+- **Incorrect issued risk decisions:** 26 Single and 39 Multi; all were **over-escalations relative to the synthetic proxy**. **No under-escalations** were observed.
+- **Stage of incorrect decisions:** Single 20 without verification and 6 after verification; Multi 27 without verification and 12 after verification.
+- **Case type:** Typical clean cases contributed 23 Single errors and 28 Multi errors. Missing-observation cases contributed 3 and 6, respectively.
+- **Coordinator/specialist attribution:** Of Multi's 39 wrong final decisions, 37 began as overestimates and two started at matching initial risk but ended wrong. The traces support these descriptions, **not** a definitive causal claim about one particular agent.
+
+The frozen hypothesis was **not supported**: Multi-Agent coverage was slightly higher, but its selective error, safe-completion rate, call count and elapsed time were worse. Neither arm achieved the target **80% coverage**, and the achieved coverage differed between arms; this is **not** a fixed-equal-coverage demonstration.
+
+### How M6 scoring is run with authorized frozen private artifacts
+
+```bash
+G5_DIR="/secure/path/to/frozen/g5"
+G6_DIR="/secure/path/to/frozen/g6"
+G7_DIR="/secure/path/to/frozen/g7"
+
+# Fairness/provenance check (read-only, no Gemini)
+python -B -m hajj_study.m6_fairness \
+  --g5-dir "$G5_DIR" --g6-dir "$G6_DIR"
+
+# Recompute documented comparison from archived real-run traces (no Gemini)
+python -B -m hajj_study.m6_results \
+  --g5-dir "$G5_DIR" --g6-dir "$G6_DIR" --g7-dir "$G7_DIR" \
+  --output "$G7_DIR/m6_scores_review.json"
+```
+
+Like M5, the second command writes within the designated private output directory. Do not run it against a sealed archive if a new file is prohibited. **Do not run `g6.py run`, `g7.py run`, or G5 live smoke** as a method of checking these frozen results: those are provider-execution paths, not safe offline reproducibility commands.
+
+The aggregate result tables are also available in [`RESULTS_SUMMARY.md`](RESULTS_SUMMARY.md).
+
+## 7. Reproducibility — exactly what is and is not verified
+
+| Level | Status and evidence |
+|---|---|
+| Install pinned Python packages | **PASS locally** with Python 3.12.5 on macOS ARM64; `pip check` found no broken requirements |
+| Offline unit/integration tests | **PASS locally:** 178 run, 0 failures, 0 errors, 1 skipped (private fixtures unavailable) |
+| Offline end-to-end system flow | **PASS locally:** scripted ISSUE, VERIFY → ISSUE, VERIFY → ABSTAIN for both agent architectures; no Gemini |
+| Offline scorer implementation | Included, covered by mock/offline tests; full replay requires private frozen files |
+| Independent reproduction of the original numerical Gemini results | **NOT PROVEN from the public repository alone**; original sealed inputs, checkpoints and traces are private |
+| Exact journal linkage for every API attempt | **NOT PROVEN**: read-only audit found 884 of 894 recorded attempt slots matched exactly, with 6 missing same-slot WAL entries and 4 same-slot mismatches; some payloads were located in other WAL slots |
+
+The read-only WAL review found no differing content among duplicated journal records, but full provider-invocation coverage cannot be claimed. The published repository should contain no API credentials, source CSV, gold labels, private prompts, raw response bodies, checkpoints, model binaries or private experiment artifacts.
+
+## 8. Interpretation, limitations and responsible use
+
+This is a **small, deliberately conditioned synthetic study**, not a real Hajj crowd-risk validation. Its labels are an explicitly reconstructed proxy, not actual incident outcomes. Three seeds repeat 30 source cases; they do not produce 90 independent samples. The target 80% coverage was not reached, and the arms did not operate at equal observed coverage. The Google API project/retry-policy changes limit causal interpretation of call, latency, and cost comparisons. The private trace audit and incomplete usage fields prevent claims of complete per-attempt provenance or exact USD cost. The verification-aware `ML+Gate` comparator was not fully completed; do not describe it as a finished benchmark.
+
+Do not use the system to control real crowds, issue autonomous safety actions, or claim human-safety accuracy. Check the source dataset's terms before redistributing any original data. Keep credentials and private evaluation material outside GitHub.
+
+## 9. Source attribution
+
+- **Research foundation:** N. Samrgandi (2026), *Multi-Agent Crowd-Risk Prioritization for Large-Scale Events: A Hybrid ML–Agent Approach*, International Journal of Advanced Computer Science and Applications, 17(7). https://doi.org/10.14569/IJACSA.2026.0170738
+- **Source data:** *Hajj and Umrah Crowd Management Dataset*, Kaggle, ziya07. https://www.kaggle.com/datasets/ziya07/hajj-and-umrah-crowd-management-dataset/data
+
+This repository is an independent course experiment building on the cited research; it does not claim to reproduce the source paper's exact experiments. Attribution does **not** establish the separate dataset's redistribution license.
