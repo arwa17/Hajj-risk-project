@@ -225,7 +225,24 @@ The manipulated factor is **one generalist vs three specialist roles + one coord
 
 The matching-case analysis recorded **31 both correct**, **11 Single-only correct**, **1 Multi-only correct**, and **47 neither issued a correct decision** (the last category includes abstentions and is not 47 errors). The paired corruption-flag rate was **6/9 per seed** in both conditions. For the proposal's conditional disrupted-case detection and clean-decision recovery analysis, Single-Agent has **N/A** because the eligible denominator is zero; the published Multi-Agent summary reports **16.67% ± 28.87 pp across seeds**, with **1/5 eligible paired observations** succeeding. These conditional measures must not be conflated with all-case accuracy or the 6/9 field-flag rate.
 
-**Cost:** Agent calls, HTTP attempts, recorded token usage where available, and runtime are the observed cost proxies. A verified total dollar amount is **not** claimed because usage fields are incomplete and pricing was not fully validated. Clean-reference overhead is accounted for separately from primary-case operational cost.
+### Estimated Gemini API cost in USD (V2)
+
+The following amounts are **standard paid-tier, uncached-rate equivalents calculated from recorded token usage**, **not verified Google charges**. The study used `gemini-3.5-flash-lite`. Published Standard rates are **$0.30 per 1 million input tokens** and **$2.50 per 1 million output tokens, including thinking tokens**. The calculation is:
+
+`estimated_USD = (recorded_prompt_tokens × 0.30 + (recorded_candidate_tokens + recorded_thinking_tokens) × 2.50) / 1,000,000`
+
+Prompt tokens are priced at the uncached rate because the historical records do not separately identify cached-input usage. Candidate and thinking tokens are each counted once.
+
+| Recorded-usage cost equivalent (USD) | Single-Agent | Multi-Agent |
+|---|---:|---:|
+| Primary Test runs (90 per condition) | $0.061146 | $0.170728 |
+| Clean-reference runs (27 per condition) | $0.017415 | $0.044885 |
+| **All recorded primary + reference runs** | **$0.078561** | **$0.215613** |
+| Per primary Test run (primary total ÷ 90) | ≈$0.000679 | ≈$0.001897 |
+
+**Incomplete usage metadata:** The cost computation did not impute unreported tokens. Missing usage occurred in **19/148** Single primary HTTP attempts, **4/40** Single clean-reference attempts, **81/519** Multi primary attempts, and **19/139** Multi clean-reference attempts. As a result, these numbers are **not complete costs or a verified bill**, and are **not necessarily lower bounds on actual charges**: missing token usage could increase the calculated equivalent; caching, free-tier usage, or billing arrangements could reduce actual charges. Differences in API project and retry policy also limit the fairness of a direct monetary-cost comparison.
+
+**Source and provenance:** [Google Gemini Developer API pricing](https://ai.google.dev/gemini-api/docs/pricing), Standard rates for Gemini 3.5 Flash-Lite, checked 11 November 2026. The amounts were derived offline from V2's sealed `m6_scores_PRIVATE.json` with the shared frozen G5/G6/G7 manifest cross-checks passing (9/9). The computation made **no new API calls** and did not change model outputs or source code. Private case records and API journals are not published here.
 
 ### Systematic failure analysis
 
