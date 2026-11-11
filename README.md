@@ -124,9 +124,13 @@ python -m unittest discover -s tests/study -p 'test_*.py' -t tests/study
 **Safety:** This command corrects discovery only. The verified R03 audit also used an isolated temporary directory, removed API credentials, and blocked network calls. Do not run these tests with live credentials.
 
 
-**Note:** The precise test-run command and dependency installation on a new
-machine still require independent verification; static file presence does not
-constitute a passed clean-clone test.
+**Verified local clean-checkout test (11 November 2026):** On macOS ARM64,
+Python 3.12.5, a newly created virtual environment with the pinned requirements
+passed `pip check`; the original public test suite completed **177 tests, 0
+failures, 0 errors, 1 skipped** with a network guard and no API credentials.
+The skipped integration test requires protected CSV/split/model inputs.
+This verifies source code and test execution in that environment, not the
+regeneration of exact private evaluation results. See `EVIDENCE_M4_M5_M6.md`.
 
 The offline paired scorer entry point is `python -m hajj_study.m6_results`.
 Its options include `--g5-dir`, `--g6-dir`, `--g7-dir`, and `--output`, all of
@@ -141,6 +145,27 @@ retained in a protected private archive; the aggregate results above come from
 that sealed evaluation. Public code alone cannot reproduce the exact held-out
 scores without authorized access to the frozen private inputs. Before any
 redistribution of source data, its license and terms must be checked.
+
+## Reproducible offline end-to-end demonstration
+
+Run `python -m examples.offline_demo` from the repository root. This
+uses **scripted synthetic provider outputs**, no Gemini, no API key and no
+protected data. It exercises the **real** Single-Agent and Multi-Agent
+validation, decision gate, bounded verification, and abstention logic.
+Its three paths are direct ISSUE, VERIFY → ISSUE, and VERIFY → ABSTAIN.
+**Local candidate verification (11 November 2026):** With the macOS test temporary directory set to a non-symlinked private audit path, the candidate completed **178 tests (0 failures, 0 errors, 1 skipped)** and all scripted end-to-end scenarios (`DEMO_ASSERTIONS: PASS`). These synthetic runs do **not** reproduce the frozen Gemini evaluation.
+
+It is a functional source-code demonstration, **not** a replication of
+the frozen empirical findings. See `EVIDENCE_M4_M5_M6.md`.
+
+## API trace verification limitation
+
+In the 11 November 2026 read-only provenance review, 884 of 894 recorded
+attempt slots were linked exactly to their WAL entries. Six expected
+slots were missing and four differed from their same-slot WAL entries;
+some corresponding requests/responses were found in other slots.
+Complete one-to-one API attempt provenance remains **unproven**.
+Neither this caveat nor the offline demo changes the frozen test outputs.
 
 ## Responsible use
 
