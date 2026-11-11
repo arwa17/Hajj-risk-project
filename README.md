@@ -158,6 +158,22 @@ Its three paths are direct ISSUE, VERIFY → ISSUE, and VERIFY → ABSTAIN.
 It is a functional source-code demonstration, **not** a replication of
 the frozen empirical findings.
 
+## M6 cost-per-task interpretation
+
+The M6 grading criterion asks for cost per task in **tokens or currency**. The
+published comparison reports logical calls and HTTP attempts per case as
+operational proxies; **these are not token counts or USD costs**. The scoring
+implementation records available provider token usage and separately counts
+attempts with unknown usage. Consequently, observed token totals must not be
+presented as complete per-task cost while usage remains missing. The protected
+original run records are required to calculate and verify any per-condition
+mean observed tokens per task and the number of tasks/attempts with incomplete
+usage. No monetary estimate or complete token cost is claimed here.
+
+This is a reporting limitation for M6, not a reason to change the frozen test
+cases, seeds, gate, prompts, or saved Gemini outcomes. The reported latency and
+attempt comparisons also have the documented provider/retry-policy caveat.
+
 ## API trace verification limitation
 
 In the 11 November 2026 read-only provenance review, 884 of 894 recorded
