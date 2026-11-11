@@ -130,7 +130,7 @@ passed `pip check`; the original public test suite completed **177 tests, 0
 failures, 0 errors, 1 skipped** with a network guard and no API credentials.
 The skipped integration test requires protected CSV/split/model inputs.
 This verifies source code and test execution in that environment, not the
-regeneration of exact private evaluation results. See `EVIDENCE_M4_M5_M6.md`.
+regeneration of exact private evaluation results.
 
 The offline paired scorer entry point is `python -m hajj_study.m6_results`.
 Its options include `--g5-dir`, `--g6-dir`, `--g7-dir`, and `--output`, all of
@@ -156,7 +156,7 @@ Its three paths are direct ISSUE, VERIFY → ISSUE, and VERIFY → ABSTAIN.
 **Local candidate verification (11 November 2026):** With the macOS test temporary directory set to a non-symlinked private audit path, the candidate completed **178 tests (0 failures, 0 errors, 1 skipped)** and all scripted end-to-end scenarios (`DEMO_ASSERTIONS: PASS`). These synthetic runs do **not** reproduce the frozen Gemini evaluation.
 
 It is a functional source-code demonstration, **not** a replication of
-the frozen empirical findings. See `EVIDENCE_M4_M5_M6.md`.
+the frozen empirical findings.
 
 ## API trace verification limitation
 
