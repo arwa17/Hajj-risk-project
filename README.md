@@ -202,7 +202,7 @@ The manipulated factor is **one generalist vs three specialist roles + one coord
 
 ### Reported results
 
-**Primary cases:** 30 test cases × 3 seeds = **90 runs per condition**. The following values are **mean ± sample SD across three seeds**, not pooled percentages.
+**Primary cases:** 30 test cases × 3 seeds = **90 runs per condition**. The following values are **mean ± sample SD across three seed-level per-task averages**, not pooled percentages or 90 independent cases. A task is one primary Test case/seed run including its recorded attempts; Clean References are excluded from the per-task values. Token figures include only reported usage; missing usage was not imputed.
 
 | Metric | Single-Agent | Multi-Agent |
 |---|---:|---:|
@@ -213,6 +213,10 @@ The manipulated factor is **one generalist vs three specialist roles + one coord
 | Trajectory safe completion | 71.11% ± 1.92 pp | 56.67% ± 3.33 pp |
 | Logical agent calls / case | 1.46 ± 0.07 | 4.99 ± 0.12 |
 | HTTP attempts / case | 1.64 ± 0.11 | 5.77 ± 0.33 |
+| Recorded input tokens / primary Test task | 743.00 ± 30.83 | 2,010.40 ± 4.21 |
+| Recorded output + thinking tokens / primary Test task | 182.60 ± 30.82 | 517.54 ± 25.67 |
+| Recorded total tokens / primary Test task | 925.60 ± 60.37 | 2,527.94 ± 27.17 |
+| Standard-rate USD equivalent / primary Test task | $0.00067940 ± $0.00008561 | $0.00189698 ± $0.00006455 |
 | Full wall-clock seconds / case | 11.90 ± 1.20 | 43.56 ± 3.41 |
 
 | Final outcome, all 90 runs | Single-Agent | Multi-Agent |
@@ -238,11 +242,11 @@ Prompt tokens are priced at the uncached rate because the historical records do 
 | Primary Test runs (90 per condition) | $0.061146 | $0.170728 |
 | Clean-reference runs (27 per condition) | $0.017415 | $0.044885 |
 | **All recorded primary + reference runs** | **$0.078561** | **$0.215613** |
-| Per primary Test run (primary total ÷ 90) | ≈$0.000679 | ≈$0.001897 |
+| Per primary Test run (mean ± sample SD across seeds) | $0.00067940 ± $0.00008561 | $0.00189698 ± $0.00006455 |
 
 **Incomplete usage metadata:** The cost computation did not impute unreported tokens. Missing usage occurred in **19/148** Single primary HTTP attempts, **4/40** Single clean-reference attempts, **81/519** Multi primary attempts, and **19/139** Multi clean-reference attempts. As a result, these numbers are **not complete costs or a verified bill**, and are **not necessarily lower bounds on actual charges**: missing token usage could increase the calculated equivalent; caching, free-tier usage, or billing arrangements could reduce actual charges. Differences in API project and retry policy also limit the fairness of a direct monetary-cost comparison.
 
-**Source and provenance:** [Google Gemini Developer API pricing](https://ai.google.dev/gemini-api/docs/pricing), Standard rates for Gemini 3.5 Flash-Lite, checked 11 November 2026. The amounts were derived offline from V2's sealed `m6_scores_PRIVATE.json` with the shared frozen G5/G6/G7 manifest cross-checks passing (9/9). The computation made **no new API calls** and did not change model outputs or source code. Private case records and API journals are not published here.
+**Source and provenance:** [Google Gemini Developer API pricing](https://ai.google.dev/gemini-api/docs/pricing), Standard rates for Gemini 3.5 Flash-Lite, checked 11 November 2026. Per-task token and USD figures were calculated offline from the original V2 G6/G7 run records and reconciled with the frozen V2 scores (**12/12 raw-to-frozen checks passed**). The computation did not impute missing usage, make new API calls, or change model outputs or source code. Private case records and API journals are not published here.
 
 ### Systematic failure analysis
 
